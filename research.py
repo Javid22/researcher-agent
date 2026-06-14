@@ -1,9 +1,9 @@
-import anthropic
 import os
 import re
 import json
 from datetime import datetime, timezone, timedelta
 
+from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -262,20 +262,17 @@ def append_to_sheet(rows: list[list[str]]) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 print(f"Running YouTube research for {today}...")
 
-response = client.messages.create(
-    model="claude-opus-4-6",
-    max_tokens=8000,
-    tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 10}],
-    messages=[{"role": "user", "content": PROMPT}],
+response = client.responses.create(
+    model="gpt-4o-mini",
+    tools=[{"type": "web_search_preview"}],
+    input=PROMPT,
 )
 
-# Extract text blocks
-output_parts = [block.text for block in response.content if hasattr(block, "text")]
-output = "\n\n".join(output_parts)
+output = response.output_text
 
 # Save markdown report
 os.makedirs("outputs", exist_ok=True)
