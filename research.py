@@ -262,17 +262,45 @@ def append_to_sheet(rows: list[list[str]]) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+def run_openai() -> str:
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    print("Using OpenAI gpt-4o-mini with web search...")
+    response = client.responses.create(
+        model="gpt-4o-mini",
+        tools=[{"type": "web_search_preview"}],
+        input=PROMPT,
+    )
+    print(f"Input tokens:  {response.usage.input_tokens}")
+    print(f"Output tokens: {response.usage.output_tokens}")
+    return response.output_text
+
+
+def run_groq() -> str:
+    groq_client = OpenAI(
+        api_key=os.environ["GROQ_API_KEY"],
+        base_url="https://api.groq.com/openai/v1",
+    )
+    print("Falling back to Groq llama-3.3-70b-versatile (no web search)...")
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": PROMPT}],
+        max_tokens=8000,
+    )
+    print(f"Input tokens:  {response.usage.prompt_tokens}")
+    print(f"Output tokens: {response.usage.completion_tokens}")
+    return response.choices[0].message.content
+
 
 print(f"Running YouTube research for {today}...")
 
-response = client.responses.create(
-    model="gpt-4o-mini",
-    tools=[{"type": "web_search_preview"}],
-    input=PROMPT,
-)
-
-output = response.output_text
+try:
+    output = run_openai()
+except Exception as e:
+    if "429" in str(e):
+        print(f"OpenAI rate limit hit (429). Switching to Groq...")
+        output = run_groq()
+    else:
+        raise
 
 # Save markdown report
 os.makedirs("outputs", exist_ok=True)
@@ -286,6 +314,3 @@ print(f"Saved: {output_path}")
 rows = parse_table(output)
 print(f"Parsed {len(rows)} topics from table.")
 append_to_sheet(rows)
-
-print(f"Input tokens:  {response.usage.input_tokens}")
-print(f"Output tokens: {response.usage.output_tokens}")
